@@ -1,6 +1,27 @@
-# CO-ART — Real-time Collaborative Drawing
+```
+ ██████╗ ██████╗       █████╗ ██████╗ ████████╗
+██╔════╝██╔═══██╗     ██╔══██╗██╔══██╗╚══██╔══╝
+██║     ██║   ██║     ███████║██████╔╝   ██║
+██║     ██║   ██║     ██╔══██║██╔══██╗   ██║
+╚██████╗╚██████╔╝     ██║  ██║██║  ██║   ██║
+ ╚═════╝ ╚═════╝      ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝
+ ```
 
-A real-time multiplayer art platform where two people can share a canvas to create artwork together. Built with Next.js 16, FastAPI, WebSockets, and LiterallyCanvas.
+### Real-time Collaborative Drawing Platform
+
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![NeonDB](https://img.shields.io/badge/NeonDB-Serverless-00A8E8?style=flat-square&logo=neon&logoColor=white)](https://neon.tech/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![WebSockets](https://img.shields.io/badge/WebSockets-Native-010101?style=flat-square&logo=websocket&logoColor=white)](https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API)
+[![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](https://web.dev/progressive-web-apps/)
+[![Bubblewrap](https://img.shields.io/badge/Bubblewrap-TWA-3DDC84?style=flat-square&logo=android&logoColor=white)](https://github.com/GoogleChromeLabs/bubblewrap)
+
+> **CO-ART** is a real-time multiplayer art platform where two people can share a canvas to create artwork together. Built with Next.js 16, FastAPI, WebSockets, and LiterallyCanvas. Features JWT authentication, server-authoritative canvas state, and PWA/Android support.
+
+---
 
 ## 🎯 Current MVP Features
 
@@ -51,7 +72,7 @@ A real-time multiplayer art platform where two people can share a canvas to crea
 - [x] Next.js 16 App Router + TypeScript + Tailwind
 - [x] Zustand for client state
 - [x] Axios with interceptors
-- [x] FastAPI + SQLAlchemy 2.x + SQLite
+- [x] FastAPI + SQLAlchemy 2.x (async) + PostgreSQL (NeonDB)
 - [x] Single uvicorn worker (in-memory room state)
 - [x] Comprehensive error handling (malformed WS messages never crash room)
 
@@ -119,7 +140,7 @@ A real-time multiplayer art platform where two people can share a canvas to crea
                       │
                       ▼
 ┌─────────────────────────────────────────────┐
-│               SQLite                         │
+│            PostgreSQL (NeonDB)              │
 │  Users • Rooms • (Future: Matches/Scores)   │
 └─────────────────────────────────────────────┘
 ```
@@ -135,7 +156,8 @@ A real-time multiplayer art platform where two people can share a canvas to crea
 | State | Zustand |
 | HTTP | Axios |
 | Auth | JWT (PyJWT), bcrypt |
-| Backend | FastAPI, SQLAlchemy 2.x, SQLite |
+| Backend | FastAPI, SQLAlchemy 2.x (async), asyncpg |
+| Database | PostgreSQL 16 (NeonDB serverless) |
 | Realtime | FastAPI WebSockets |
 | PWA | Manual manifest + Service Worker |
 | Android | Google Bubblewrap |
@@ -148,6 +170,7 @@ A real-time multiplayer art platform where two people can share a canvas to crea
 - Python 3.12+
 - Node.js 20+
 - npm/pnpm
+- PostgreSQL (or NeonDB account)
 
 ### Backend
 ```bash
@@ -156,7 +179,7 @@ python -m venv .venv
 .venv\Scripts\activate  # Windows
 # source .venv/bin/activate  # Linux/Mac
 pip install -r requirements.txt
-cp .env.example .env  # edit SECRET_KEY
+cp .env.example .env  # edit DATABASE_URL and SECRET_KEY
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -193,7 +216,7 @@ coart/
 │   └── app/
 │       ├── main.py           # FastAPI app factory
 │       ├── config.py         # Settings (pydantic-settings)
-│       ├── database.py       # SQLAlchemy engine/session
+│       ├── database.py       # Async SQLAlchemy engine/session
 │       ├── models.py         # User, Room models
 │       ├── schemas.py        # Pydantic schemas
 │       ├── security.py       # JWT, bcrypt, get_current_user
@@ -272,3 +295,8 @@ Requires:
 - Digital Asset Links (`/.well-known/assetlinks.json`) with SHA-256 of signing key
 - WSS WebSocket URL in production
 
+---
+
+## 📄 License
+
+MIT License — feel free to use for learning or as a starter for your own collaborative apps.
