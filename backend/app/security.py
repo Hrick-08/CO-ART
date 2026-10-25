@@ -3,7 +3,8 @@ import jwt
 from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import Depends, HTTPException, status, Header
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.config import settings
 from app.database import get_db
 from app.models import User
@@ -43,9 +44,9 @@ def decode_token(token: str) -> Optional[dict]:
         return None
 
 
-def get_current_user(
+async def get_current_user(
     authorization: str = Header(None),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ) -> User:
     """Get current authenticated user from JWT token."""
     if not authorization or not authorization.startswith("Bearer "):
@@ -72,7 +73,8 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    result = await db.execute(select(User).where(User.id == int(user_id)))
+    user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

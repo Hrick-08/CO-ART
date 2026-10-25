@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.database import get_db
 from app.models import Room, User
 from app.schemas import RoomCreate, RoomOut, RoomJoin
@@ -11,13 +12,13 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 
 @router.post("", response_model=RoomOut, status_code=status.HTTP_201_CREATED)
-def create_room(room_data: RoomCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    code = generate_room_code()
+async def create_room(room_data: RoomCreate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    code = await generate_room_code(db)
     room = Room(code=code, creator_id=current_user.id, status="open")
     db.add(room)
-    db.commit()
-    db.refresh(room)
-    
+    await db.commit()
+    await db.refresh(room)
+
     return RoomOut(
         id=room.id,
         code=room.code,
@@ -31,18 +32,24 @@ def create_room(room_data: RoomCreate, current_user: User = Depends(get_current_
 
 
 @router.get("/{code}", response_model=RoomOut)
-def get_room(code: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def get_room(code: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     code = normalize_code(code)
-    room = db.query(Room).filter(Room.code == code).first()
+    result = await db.execute(select(Room).where(Room.code == code))
+    room = result.scalar_one_or_none()
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Room not found"
         )
-    
-    creator = db.query(User).filter(User.id == room.creator_id).first()
-    guest = db.query(User).filter(User.id == room.guest_id).first() if room.guest_id else None
-    
+
+    # Load creator and guest
+    creator_result = await db.execute(select(User).where(User.id == room.creator_id))
+    creator = creator_result.scalar_one_or_none()
+    guest = None
+    if room.guest_id:
+        guest_result = await db.execute(select(User).where(User.id == room.guest_id))
+        guest = guest_result.scalar_one_or_none()
+
     return RoomOut(
         id=room.id,
         code=room.code,
@@ -56,20 +63,25 @@ def get_room(code: str, current_user: User = Depends(get_current_user), db: Sess
 
 
 @router.post("/{code}/join", response_model=RoomOut)
-def join_room(code: str, join_data: RoomJoin, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+async def join_room(code: str, join_data: RoomJoin, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     code = normalize_code(code)
-    room = db.query(Room).filter(Room.code == code).first()
+    result = await db.execute(select(Room).where(Room.code == code))
+    room = result.scalar_one_or_none()
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Room not found"
         )
-    
+
     # Check if user is already creator or guest
     if room.creator_id == current_user.id or room.guest_id == current_user.id:
         # Idempotent - already in room
-        creator = db.query(User).filter(User.id == room.creator_id).first()
-        guest = db.query(User).filter(User.id == room.guest_id).first() if room.guest_id else None
+        creator_result = await db.execute(select(User).where(User.id == room.creator_id))
+        creator = creator_result.scalar_one_or_none()
+        guest = None
+        if room.guest_id:
+            guest_result = await db.execute(select(User).where(User.id == room.guest_id))
+            guest = guest_result.scalar_one_or_none()
         return RoomOut(
             id=room.id,
             code=room.code,
@@ -80,22 +92,24 @@ def join_room(code: str, join_data: RoomJoin, current_user: User = Depends(get_c
             creator_username=creator.username if creator else "Unknown",
             guest_username=guest.username if guest else None
         )
-    
+
     # Check if room has space
     if room.guest_id is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Room is full"
         )
-    
+
     # Join as guest
     room.guest_id = current_user.id
-    db.commit()
-    db.refresh(room)
-    
-    creator = db.query(User).filter(User.id == room.creator_id).first()
-    guest = db.query(User).filter(User.id == room.guest_id).first()
-    
+    await db.commit()
+    await db.refresh(room)
+
+    creator_result = await db.execute(select(User).where(User.id == room.creator_id))
+    creator = creator_result.scalar_one_or_none()
+    guest_result = await db.execute(select(User).where(User.id == room.guest_id))
+    guest = guest_result.scalar_one_or_none()
+
     return RoomOut(
         id=room.id,
         code=room.code,

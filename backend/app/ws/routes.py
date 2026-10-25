@@ -1,13 +1,53 @@
 import json
-import uuid
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from app.ws.manager import manager, RoomState
 from app.security import decode_token
-from app.database import SessionLocal
+from app.database import AsyncSessionLocal
 from app.models import Room, User
 
 
 router = APIRouter()
+
+
+async def get_user_from_token(db: AsyncSession, token: str) -> User | None:
+    """Decode token and get user from database."""
+    payload = decode_token(token)
+    if not payload:
+        return None
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+    result = await db.execute(select(User).where(User.id == int(user_id)))
+    return result.scalar_one_or_none()
+
+
+async def get_room_and_validate(db: AsyncSession, code: str, user: User) -> Room | None:
+    """Get room and validate user is member."""
+    code = code.strip().upper()
+    result = await db.execute(select(Room).where(Room.code == code))
+    room = result.scalar_one_or_none()
+    if not room:
+        return None
+    if room.creator_id != user.id and room.guest_id != user.id:
+        return None
+    return room
+
+
+async def get_players(db: AsyncSession, room: Room) -> list[dict]:
+    """Get player list for room."""
+    players = []
+    creator_result = await db.execute(select(User).where(User.id == room.creator_id))
+    creator = creator_result.scalar_one_or_none()
+    if creator:
+        players.append({"id": creator.id, "username": creator.username})
+    if room.guest_id:
+        guest_result = await db.execute(select(User).where(User.id == room.guest_id))
+        guest = guest_result.scalar_one_or_none()
+        if guest:
+            players.append({"id": guest.id, "username": guest.username})
+    return players
 
 
 @router.websocket("/ws/{code}")
@@ -18,46 +58,32 @@ async def websocket_endpoint(
 ):
     code = code.strip().upper()
     
-    # 1. Decode/verify token
-    payload = decode_token(token)
-    if not payload:
-        await websocket.close(code=4401)  # auth failed
-        return
-    
-    user_id = payload.get("sub")
-    if not user_id:
-        await websocket.close(code=4401)
-        return
-    
-    # Get user from DB
-    db = SessionLocal()
-    try:
-        user = db.query(User).filter(User.id == user_id).first()
+    # Create async database session for this connection
+    async with AsyncSessionLocal() as db:
+        # 1. Decode/verify token and get user
+        user = await get_user_from_token(db, token)
         if not user:
-            await websocket.close(code=4401)
-            return
-    finally:
-        db.close()
-    
-    # 2. Room exists
-    db = SessionLocal()
-    try:
-        room = db.query(Room).filter(Room.code == code).first()
-        if not room:
-            await websocket.close(code=4404)  # room not found
+            await websocket.close(code=4401)  # auth failed
             return
         
-        # 3. User is creator or guest
-        if room.creator_id != user.id and room.guest_id != user.id:
-            await websocket.close(code=4403)  # forbidden
+        # 2. Room exists and user is member
+        room = await get_room_and_validate(db, code, user)
+        if not room:
+            # Distinguish between room not found and user not member
+            room_check = await db.execute(select(Room).where(Room.code == code))
+            if not room_check.scalar_one_or_none():
+                await websocket.close(code=4404)  # room not found
+            else:
+                await websocket.close(code=4403)  # forbidden
             return
-    finally:
-        db.close()
+        
+        # Get player list
+        players = await get_players(db, room)
     
-    # Accept connection
+    # Accept connection (after DB session is closed)
     await websocket.accept()
     
-    # Get or create room state
+    # Get or create room state (in-memory)
     room_state = manager.create_room(code)
     
     # 4. Replace existing connection for this user (handles refresh/reconnect)
@@ -75,21 +101,6 @@ async def websocket_endpoint(
         room_state.remove_connection(user.id)
         await websocket.close(code=4409)  # room full
         return
-    
-    # Get other player info
-    db = SessionLocal()
-    try:
-        creator = db.query(User).filter(User.id == room.creator_id).first()
-        guest = db.query(User).filter(User.id == room.guest_id).first() if room.guest_id else None
-    finally:
-        db.close()
-    
-    # Build player list
-    players = []
-    if creator:
-        players.append({"id": creator.id, "username": creator.username})
-    if guest:
-        players.append({"id": guest.id, "username": guest.username})
     
     # Send welcome to new client
     await manager.send_personal(websocket, {
@@ -156,20 +167,11 @@ async def websocket_endpoint(
         # Clean up on disconnect
         room_state.remove_connection(user.id)
         
-        # Broadcast player_left
-        db = SessionLocal()
-        try:
-            room = db.query(Room).filter(Room.code == code).first()
-            creator = db.query(User).filter(User.id == room.creator_id).first() if room else None
-            guest = db.query(User).filter(User.id == room.guest_id).first() if room and room.guest_id else None
-        finally:
-            db.close()
-        
-        players = []
-        if creator:
-            players.append({"id": creator.id, "username": creator.username})
-        if guest:
-            players.append({"id": guest.id, "username": guest.username})
+        # Broadcast player_left (need fresh DB session)
+        async with AsyncSessionLocal() as db:
+            room = await db.execute(select(Room).where(Room.code == code))
+            room = room.scalar_one_or_none()
+            players = await get_players(db, room) if room else []
         
         await manager.broadcast_to_all(code, {
             "type": "player_left",

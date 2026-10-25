@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -23,5 +23,5 @@ class Room(Base):
     status = Column(String(10), default="open")  # "open" | "closed"
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    creator = relationship("User", foreign_keys=[creator_id])
-    guest = relationship("User", foreign_keys=[guest_id])
+    creator = relationship("User", foreign_keys=[creator_id], lazy="selectin")
+    guest = relationship("User", foreign_keys=[guest_id], lazy="selectin")
