@@ -6,11 +6,13 @@ declare global {
   interface Window {
     LC: {
       init: (el: HTMLElement, opts: any) => any;
+      shapeToJSON: (shape: any) => any;
+      JSONToShape: (data: any) => any;
     };
   }
 }
 
-interface CanvasBoardRef {
+export interface CanvasBoardRef {
   addRemoteShape: (shapeId: string, data: any) => void;
   removeRemoteShape: (shapeId: string) => void;
   clearRemoteCanvas: () => void;
@@ -21,10 +23,11 @@ interface CanvasBoardRef {
 interface CanvasBoardProps {
   onShapeAdd: (shape: { id: string; data: any }) => void;
   connectionStatus: string;
+  onReady?: () => void;
 }
 
 export const CanvasBoard = forwardRef<CanvasBoardRef, CanvasBoardProps>(
-  ({ onShapeAdd, connectionStatus }, ref) => {
+  ({ onShapeAdd, connectionStatus, onReady }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const lcRef = useRef<any>(null);
     const shapeIdMapRef = useRef<Map<string, any>>(new Map());
@@ -68,33 +71,21 @@ export const CanvasBoard = forwardRef<CanvasBoardRef, CanvasBoardProps>(
           imageURLPrefix: "/literallycanvas/img/",
           backgroundColor: "#fff",
           primaryColor: "#000",
-          tools: [
-            "pencil",
-            "eraser",
-            "line",
-            "rectangle",
-            "ellipse",
-            "text",
-            "polygon",
-            "pan",
-            "eyedropper",
-          ],
-          defaultTool: "pencil",
           snapshot: [],
-          imageSize: { width: 1200, height: 800 },
         });
 
         lcRef.current = lc;
+        onReady?.();
 
         // Listen for shape save events (local drawing)
-        lc.on("shapeSave", (shape: any, triggerShapeSaveEvent: boolean) => {
+        lc.on("shapeSave", (event: { shape: any }) => {
           if (applyingRemoteRef.current) return;
           
           const shapeId = crypto.randomUUID();
-          const shapeData = lc.shapeToJSON(shape);
+          const shapeData = window.LC.shapeToJSON(event.shape);
           
           // Store mapping
-          shapeIdMapRef.current.set(shapeId, shape);
+          shapeIdMapRef.current.set(shapeId, event.shape);
           shapesRef.current.push({ id: shapeId, data: shapeData });
           
           // Send to server
@@ -127,7 +118,7 @@ export const CanvasBoard = forwardRef<CanvasBoardRef, CanvasBoardProps>(
       
       applyingRemoteRef.current = true;
       try {
-        const shape = lcRef.current.JSONToShape(data);
+        const shape = window.LC.JSONToShape(data);
         lcRef.current.saveShape(shape, false);
         shapeIdMapRef.current.set(shapeId, shape);
         shapesRef.current.push({ id: shapeId, data });
@@ -162,10 +153,7 @@ export const CanvasBoard = forwardRef<CanvasBoardRef, CanvasBoardProps>(
       
       applyingRemoteRef.current = true;
       try {
-        lcRef.current.shapes.forEach((shape: any) => {
-          lcRef.current.removeShape(shape);
-        });
-        lcRef.current.repaintLayer("main");
+        lcRef.current.clear(false);
         shapeIdMapRef.current.clear();
         shapesRef.current = [];
       } finally {
@@ -178,15 +166,13 @@ export const CanvasBoard = forwardRef<CanvasBoardRef, CanvasBoardProps>(
       
       applyingRemoteRef.current = true;
       try {
-        lcRef.current.shapes.forEach((shape: any) => {
-          lcRef.current.removeShape(shape);
-        });
+        lcRef.current.clear(false);
         
         shapeIdMapRef.current.clear();
         shapesRef.current = [];
         
         shapes.forEach(({ id, data }) => {
-          const shape = lcRef.current.JSONToShape(data);
+          const shape = window.LC.JSONToShape(data);
           lcRef.current.saveShape(shape, false);
           shapeIdMapRef.current.set(id, shape);
           shapesRef.current.push({ id, data });
@@ -203,7 +189,12 @@ export const CanvasBoard = forwardRef<CanvasBoardRef, CanvasBoardProps>(
       
       try {
         const image = lcRef.current.getImage({
-          rect: { x: 0, y: 0, width: 1200, height: 800 },
+          rect: {
+            x: 0,
+            y: 0,
+            width: lcRef.current.canvas.width / lcRef.current.scale,
+            height: lcRef.current.canvas.height / lcRef.current.scale,
+          },
           scale: 2,
           includeWatermark: false,
         });
@@ -254,8 +245,6 @@ export const CanvasBoard = forwardRef<CanvasBoardRef, CanvasBoardProps>(
           style={{ 
             width: "100%", 
             height: "100%",
-            maxWidth: "1200px",
-            maxHeight: "800px",
             margin: "0 auto",
           }}
         />

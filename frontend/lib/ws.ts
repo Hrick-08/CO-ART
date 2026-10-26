@@ -32,7 +32,7 @@ export class RoomSocket {
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
-      const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000"}/ws/${this.code}?token=${this.token}`;
+      const wsUrl = `${process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000"}/ws/${encodeURIComponent(this.code)}?token=${encodeURIComponent(this.token)}`;
       
       try {
         this.ws = new WebSocket(wsUrl);
@@ -59,6 +59,13 @@ export class RoomSocket {
 
       this.ws.onclose = (event) => {
         const wasConnected = useRoomStore.getState().connectionStatus === "connected";
+        if (!event.wasClean) {
+          console.warn("WebSocket closed unexpectedly:", {
+            code: event.code,
+            reason: event.reason || "No reason provided",
+            wasConnected,
+          });
+        }
         
         // Check close codes that should NOT trigger reconnect
         const noReconnectCodes = [4401, 4403, 4404, 4409];
@@ -93,7 +100,11 @@ export class RoomSocket {
       };
 
       this.ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
+        console.warn("WebSocket connection error:", {
+          code: this.code,
+          readyState: this.ws?.readyState,
+          error,
+        });
         if (useRoomStore.getState().connectionStatus === "connecting") {
           reject(new Error("Connection failed"));
         }

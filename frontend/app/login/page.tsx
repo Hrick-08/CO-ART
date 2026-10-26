@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useUIStore } from "@/store/ui";
-import api from "@/lib/api";
+import api, { getApiErrorMessage } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,8 +23,8 @@ export default function LoginPage() {
       const { access_token, user } = response.data;
       login(access_token, user);
       router.push("/home");
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Login failed");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Login failed"));
     } finally {
       setLoading(false);
     }

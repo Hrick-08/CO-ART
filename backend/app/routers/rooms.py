@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 
 @router.post("", response_model=RoomOut, status_code=status.HTTP_201_CREATED)
-async def create_room(room_data: RoomCreate, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def create_room(room_data: Optional[RoomCreate] = None, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     code = await generate_room_code(db)
     room = Room(code=code, creator_id=current_user.id, status="open")
     db.add(room)
@@ -63,7 +64,7 @@ async def get_room(code: str, current_user: User = Depends(get_current_user), db
 
 
 @router.post("/{code}/join", response_model=RoomOut)
-async def join_room(code: str, join_data: RoomJoin, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+async def join_room(code: str, join_data: Optional[RoomJoin] = None, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     code = normalize_code(code)
     result = await db.execute(select(Room).where(Room.code == code))
     room = result.scalar_one_or_none()

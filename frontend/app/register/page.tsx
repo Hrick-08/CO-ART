@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useUIStore } from "@/store/ui";
-import api from "@/lib/api";
+import api, { getApiErrorMessage } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -35,8 +35,8 @@ export default function RegisterPage() {
       const { access_token, user } = response.data;
       login(access_token, user);
       router.push("/home");
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Registration failed");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Registration failed"));
     } finally {
       setLoading(false);
     }

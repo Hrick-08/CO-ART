@@ -37,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="icon" href="/icons/icon-192.png" sizes="192x192" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <link rel="stylesheet" href="/literallycanvas/css/literallycanvas.css" />
         <meta name="theme-color" content="#1a1a1a" />
       </head>
       <body className="min-h-full flex flex-col bg-gray-50 dark:bg-gray-900">{children}</body>

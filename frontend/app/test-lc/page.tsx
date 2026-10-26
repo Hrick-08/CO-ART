@@ -6,6 +6,8 @@ declare global {
   interface Window {
     LC: {
       init: (el: HTMLElement, opts: any) => any;
+      shapeToJSON: (shape: any) => any;
+      JSONToShape: (data: any) => any;
     };
   }
 }
@@ -47,18 +49,6 @@ export default function TestLC() {
         imageURLPrefix: "/literallycanvas/img/",
         backgroundColor: "#fff",
         primaryColor: "#000",
-        tools: [
-          "pencil",
-          "eraser",
-          "line",
-          "rectangle",
-          "ellipse",
-          "text",
-          "polygon",
-          "pan",
-          "eyedropper",
-        ],
-        defaultTool: "pencil",
         snapshot: [],
       });
       lcRef.current = lc;

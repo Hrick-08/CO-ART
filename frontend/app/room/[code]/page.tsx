@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Suspense } from "react";
 import { AuthGuard } from "@/app/components/AuthGuard";
 import { CanvasBoard, CanvasBoardRef } from "@/app/components/CanvasBoard";
 import { Toolbar } from "@/app/components/Toolbar";
@@ -12,9 +13,9 @@ import { RoomSocket, WSMessage } from "@/lib/ws";
 import { useAuthStore } from "@/store/auth";
 import { useRoomStore } from "@/store/room";
 import { useUIStore } from "@/store/ui";
-import api from "@/lib/api";
+import api, { getApiErrorMessage } from "@/lib/api";
 
-export default function RoomPage() {
+function RoomPageContent() {
   const params = useParams();
   const router = useRouter();
   const code = params.code as string;
@@ -38,7 +39,7 @@ export default function RoomPage() {
         const room = roomResponse.data;
         
         // 2. Join room
-        await api.post(`/rooms/${code}/join`);
+        await api.post(`/rooms/${code}/join`, {});
         
         // 3. Set up room state
         setCode(code);
@@ -66,10 +67,11 @@ export default function RoomPage() {
         return () => {
           unsubscribe();
         };
-      } catch (err: any) {
-        setError(err.response?.data?.detail || "Failed to load room");
+      } catch (err: unknown) {
+        setError(getApiErrorMessage(err, "Failed to load room"));
         setConnectionStatus("not_found");
       }
+
     };
 
     initRoom();
@@ -195,6 +197,7 @@ export default function RoomPage() {
               ref={canvasRef}
               onShapeAdd={handleShapeAdd}
               connectionStatus={useRoomStore.getState().connectionStatus}
+              onReady={() => socketRef.current?.send({ type: "sync_request" })}
             />
           </div>
           
@@ -211,5 +214,19 @@ export default function RoomPage() {
         </main>
       </div>
     </AuthGuard>
+  );
+}
+
+export default function RoomPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+          <p className="text-gray-600 dark:text-gray-400">Loading room...</p>
+        </div>
+      }
+    >
+      <RoomPageContent />
+    </Suspense>
   );
 }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { AuthGuard } from "@/app/components/AuthGuard";
 import { useAuthStore } from "@/store/auth";
 import { useUIStore } from "@/store/ui";
-import api from "@/lib/api";
+import api, { getApiErrorMessage } from "@/lib/api";
 
 export default function HomePage() {
   const router = useRouter();
@@ -17,11 +17,11 @@ export default function HomePage() {
     clearError();
     setLoading(true);
     try {
-      const response = await api.post("/rooms");
+      const response = await api.post("/rooms", {});
       const room = response.data;
       router.push(`/room/${room.code}`);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to create room");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Failed to create room"));
     } finally {
       setLoading(false);
     }
@@ -36,10 +36,10 @@ export default function HomePage() {
     }
     setLoading(true);
     try {
-      await api.post(`/rooms/${code}/join`);
+      await api.post(`/rooms/${code}/join`, {});
       router.push(`/room/${code}`);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to join room");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Failed to join room"));
     } finally {
       setLoading(false);
     }
